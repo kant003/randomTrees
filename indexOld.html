@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="libs/p5.js"></script>
+
+</head>
+
+<body>
+    <script>
+        let cam;
+        let tree
+
+        function preload() {
+
+        }
+
+
+        function setup() {
+            textSize(32);
+            textFont('Georgia');
+
+            createCanvas(400, 400, WEBGL);
+            cam = createCamera();
+            tree = new Tree(5)
+            tree.createModel()
+
+            //m = createModel();
+        }
+
+        function draw() {
+            background(100);
+
+
+
+            orbitControl();
+
+            shininess(50);
+            ambientLight(50);
+
+            //normalMaterial()
+            // Shine a light in the direction the camera is pointing
+            directionalLight(
+                240, 240, 240,
+                cam.centerX - cam.eyeX,
+                cam.centerY - cam.eyeY,
+                cam.centerZ - cam.eyeZ
+            );
+
+            // stroke('white');
+            // noStroke();
+            //rotateY(0.5);
+            torus(1, 1);
+
+            push()
+            scale(40)
+            rotateX(-Math.PI * 0.2)
+            rotateY(-Math.PI * 0.2)
+            translate(0,3)
+            if (tree) tree.model()
+
+            pop()
+        }
+
+
+
+        class Tree {
+
+            constructor(resolution = 41) {
+                this.resolution = resolution;
+
+            }
+
+
+
+            createSection(localUp, up, resX, resY,side,incX, incZ, tamX, tamZ, despX, despZ) {
+
+                function createMesh(localUp, the_planet) {
+                    //the_planet.resolution=30
+
+                    const axisA = new p5.Vector(localUp.z, localUp.y, localUp.x)
+                    const axisB = p5.Vector.cross(localUp, axisA)
+//if(side!=2) return
+                    let i = 0
+                    for (let y = 0; y < resY; y++) {
+                        for (let x = 0; x < resX; x++) {
+                            const percent = new p5.Vector(x/(resX-1), y/(resY-1));
+                            const ta = p5.Vector.mult(axisA, (percent.x - 0.5) * 2)
+                            const tb = p5.Vector.mult(axisB, (percent.y - 0.5) * 2)
+                            const pointOnUnitCube = p5.Vector.add(p5.Vector.add(localUp, ta), tb)
+                            pointOnUnitCube.y += up
+                            
+                            pointOnUnitCube.x *=tamX 
+                            pointOnUnitCube.z *=tamZ
+                            pointOnUnitCube.x +=despX
+                            pointOnUnitCube.z +=despZ
+                          
+                           if( (side==0 || side == 1) && y>0){
+                            pointOnUnitCube.x /=y*1.1
+                            pointOnUnitCube.z /=y*1.1
+                          //  pointOnUnitCube.z /=y*incZ
+                            
+                               pointOnUnitCube.x+=y*incX
+                               pointOnUnitCube.z+=y*incZ
+                           }
+                           if( (side==2 || side == 3) && resX-1-y>0){
+                            pointOnUnitCube.x /=(resX-1-y)*1.1
+                            pointOnUnitCube.z /=(resX-1-y)*1.1
+                           // pointOnUnitCube.x /=(resX-1-y)*incX
+                          //  pointOnUnitCube.z /=(resX-1-y)*incZ
+
+                               pointOnUnitCube.x+=(resX-1-y)*incX
+                               pointOnUnitCube.z+=(resX-1-y)*incZ
+                           }
+                           
+                           
+                           
+                            this.vertices.push(pointOnUnitCube);
+
+                            if (x != resX - 1 && y != resY - 1) {
+                                this.faces.push([i, i + resX + 1, i + resX]);
+                                this.faces.push([i, i + 1, i + resX + 1]);
+                            }
+                            i++
+
+
+                        }
+                    }
+
+                    //this.computeFaces();
+                    this.computeNormals();
+                    this.gid = `sect|${parseInt(random(1, 200))}|${the_planet.radius}|${the_planet.resolution}|${localUp.x}|${localUp.y}|${localUp.z}|${up}`;
+                    //  console.log(this.gid)
+                }
+
+                const the_planet = this
+                return new p5.Geometry(
+                    // detailX and detailY are not used in this example
+                    1, 1,
+                    // The callback must be an anonymous function, not an arrow function in
+                    // order for "this" to be bound correctly.
+                    function () { createMesh.call(this, localUp, the_planet) }
+                );
+
+            }
+
+
+
+
+            createBranch(up, resX, resY, resZ,incX, incZ,  tamX, tamZ, despX, despZ) {
+                const m0 = this.createSection(new p5.Vector(1, 0, 0), up, resX, resY,0,incX, incZ,   tamX, tamZ, despX, despZ);
+                this.models.push(m0)
+                const m1 = this.createSection(new p5.Vector(-1, 0, 0), up, resX, resY,1,incX, incZ,   tamX, tamZ, despX, despZ);
+                this.models.push(m1)
+                const m2 = this.createSection(new p5.Vector(0, 0, 1), up, resZ, resY,2,incX, incZ,    tamX, tamZ, despX, despZ);
+                this.models.push(m2)
+                const m3 = this.createSection(new p5.Vector(0, 0, -1), up, resZ, resY,3,incX, incZ,    tamX, tamZ, despX, despZ);
+                this.models.push(m3)
+            }
+
+            createTree(deep, high, tamX, tamZ, despX, despZ, incX, incZ) {
+               // const inc=0
+
+                this.createBranch(high, 5, 5,5, incX,incZ,     tamX,tamZ,   despX, despZ)
+                if(deep==0) return
+                this.createTree(deep-1, high-2, tamX/3, tamZ/3, despX, despZ+0.2,   incX, incZ+0.3)
+                //this.createTree(deep-1, high-2, tamX, tamZ/2, despX, despZ+0.5+incZ+0.3/2,   incX, incZ-0.3)
+            }
+            
+            createModel() {
+                this.models = []
+//1 0     0   -2
+//2 1 0    0   -2  -4
+
+
+                this.createTree(2, 0,   1,1,   0,0,   0,0)
+               /* this.createBranch(0, 5, 5,5, inc,0,     1,1, 0,0)
+
+                this.createBranch(-2,   5, 5, 5,     0.3,0 ,  0.5,0.5,   0.5,0.5)
+                this.createBranch(-2,   5, 5, 5,     -0.3,0.3 ,  0.5,1,   -0.5,0)
+                
+                this.createBranch(-4,   5, 5, 5,     -0.3,0.3 ,  0.25,0.25,   -1.5,0)*/
+            }
+
+            model() {
+                for (let i = 0; i < this.models.length; i++) {
+                    model(this.models[i])
+                }
+            }
+
+        }
+
+
+
+    </script>
+</body>
+
+</html>
